@@ -8,8 +8,8 @@ logic [1:0] command = 2'd0;
 logic [21:0] data_address = 22'd0;
 logic [15:0] data_write = 16'hFACE;
 logic [15:0] data_read;
-logic data_ready;
-logic data_next;
+logic data_read_valid;
+logic data_write_done;
 
 logic [11:0] SDRAM_ADDR;
 logic [1:0] SDRAM_BA;
@@ -27,15 +27,15 @@ as4c4m16sa as4c4m16sa (
     .data_address(data_address),
     .data_write(data_write),
     .data_read(data_read),
-    .data_ready(data_ready),
-    .data_next(data_next),
-    .cke(SDRAM_CKE),
-    .ba(SDRAM_BA),
-    .a(SDRAM_ADDR),
-    .cs(SDRAM_CSn),
-    .ras(SDRAM_RASn),
-    .cas(SDRAM_CASn),
-    .we(SDRAM_WEn),
+    .data_read_valid(data_read_valid),
+    .data_write_done(data_write_done),
+    .clock_enable(SDRAM_CKE),
+    .bank_activate(SDRAM_BA),
+    .address(SDRAM_ADDR),
+    .chip_select(SDRAM_CSn),
+    .row_address_strobe(SDRAM_RASn),
+    .column_address_strobe(SDRAM_CASn),
+    .write_enable(SDRAM_WEn),
     .dqm(SDRAM_DQM),
     .dq(SDRAM_DQ)
 );
@@ -45,7 +45,7 @@ begin
     wait (as4c4m16sa.state == 3'd1);
     command <= 2'd1;
     wait (as4c4m16sa.state == 3'd2);
-    wait (data_next);
+    wait (data_write_done);
     command <= 2'd0;
     wait (as4c4m16sa.state == 3'd1);
     command <= 2'd2;

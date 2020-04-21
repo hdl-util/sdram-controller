@@ -7,7 +7,7 @@ module mkrvidor4000_top
   output logic SAM_INT_OUT,
   
   // SDRAM
-  output logic SDRAM_CLK,
+  output wire SDRAM_CLK,
   output logic [11:0] SDRAM_ADDR,
   output logic [1:0] SDRAM_BA,
   output logic SDRAM_CASn,
@@ -141,27 +141,27 @@ logic [9:0] cx, cy, screen_start_x, screen_start_y;
 hdmi #(.VIDEO_ID_CODE(1), .DDRIO(1), .AUDIO_RATE(AUDIO_RATE), .AUDIO_BIT_WIDTH(AUDIO_BIT_WIDTH)) hdmi(.clk_pixel_x10(clk_pixel_x5), .clk_pixel(clk_pixel), .clk_audio(clk_audio), .rgb(rgb), .audio_sample_word('{audio_sample_word, audio_sample_word}), .tmds_p(HDMI_TX), .tmds_clock_p(HDMI_CLK), .tmds_n(HDMI_TX_N), .tmds_clock_n(HDMI_CLK_N), .cx(cx), .cy(cy), .screen_start_x(screen_start_x), .screen_start_y(screen_start_y));
 
 logic [1:0] command = 2'd0;
-logic [21:0] data_address = {2'b00, 20'hCAFEE};
-logic [15:0] data_write = 16'hFACE;
+logic [21:0] data_address = {2'b01, 20'hCAFEE};
+logic [15:0] data_write = 16'h1234;
 logic [15:0] data_read;
-logic data_ready;
-logic data_next;
+logic data_read_valid;
+logic data_write_done;
 
 as4c4m16sa as4c4m16sa (
-  .clk(SDRAM_CLK),
+	.clk(SDRAM_CLK),
   .command(command),
   .data_address(data_address),
   .data_write(data_write),
   .data_read(data_read),
-  .data_ready(data_ready),
-  .data_next(data_next),
-  .cke(SDRAM_CKE),
-  .ba(SDRAM_BA),
-  .a(SDRAM_ADDR),
-  .cs(SDRAM_CSn),
-  .ras(SDRAM_RASn),
-  .cas(SDRAM_CASn),
-  .we(SDRAM_WEn),
+  .data_read_valid(data_read_valid),
+  .data_write_done(data_write_done),
+  .clock_enable(SDRAM_CKE),
+  .bank_activate(SDRAM_BA),
+  .address(SDRAM_ADDR),
+  .chip_select(SDRAM_CSn),
+  .row_address_strobe(SDRAM_RASn),
+  .column_address_strobe(SDRAM_CASn),
+  .write_enable(SDRAM_WEn),
   .dqm(SDRAM_DQM),
   .dq(SDRAM_DQ)
 );
@@ -173,19 +173,20 @@ begin
   if (state == 2'd0)
   begin
     command <= 2'd1;
-    state <= 2'd1;
+    state <= state + 1'd1;
     codepoints[0] <= 8'h23;
   end
-  else if (state == 2'd1 && data_next)
+  else if (state == 2'd1 && data_write_done)
   begin
     command <= 2'd2;
-    state <= 2'd2;
+    state <= state + 1'd1;
     codepoints[0] <= 8'h24;
   end
-  else if (state == 2'd2 && data_ready)
+  else if (state == 2'd2 && data_read_valid)
   begin
     command <= 2'd0;
     codepoints <= '{data_read[15:12] + 8'h30, data_read[11:8] + 8'h30, data_read[7:4] + 8'h30, data_read[3:0] + 8'h30};
+    state <= state + 1'd1;
   end
 end
 
