@@ -14,4 +14,4 @@ Designate pins as LVTTL 3.3V IO standard.
 
 These documents are not hosted here! They are available on Library Genesis and at other locations.
 
-* [AS4C4M16SA Datasheet]()
+* [AS4C4M16SA Datasheet](https://www.alliancememory.com/wp-content/uploads/pdf/dram/64M-AS4C4M16SA-CI_v3.0_March%202015.pdf)
