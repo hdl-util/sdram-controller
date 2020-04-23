@@ -33,6 +33,7 @@ The SDRAM controller Arduino uses for this chip is proprietary Intel IP: `altera
         * Auto precharging predicts the next memory access will be on a diferent page
         * Manual precharging assumes spatial locality
     * [ ] Bank activation: if the row address and bank are the same, can you do a repeated read/write?
+    * [ ] Command pipelining: you can activate another bank while a write/read is being done
 
 
 

@@ -44,3 +44,5 @@ ip_cores/
 *.ppf
 *.qip
 *.cnx
+greybox_tmp
+qmegawiz_errors_log.txt

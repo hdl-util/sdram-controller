@@ -105,14 +105,6 @@ module mkrvidor4000_top
 // signal declaration
 wire OSC_CLK;
 
-wire [31:0] JTAG_ADDRESS, JTAG_READ_DATA, JTAG_WRITE_DATA, DPRAM_READ_DATA;
-wire JTAG_READ, JTAG_WRITE, JTAG_WAIT_REQUEST, JTAG_READ_DATAVALID;
-wire [4:0] JTAG_BURST_COUNT;
-wire DPRAM_CS;
-
-wire [7:0] DVI_RED,DVI_GRN,DVI_BLU;
-wire DVI_HS, DVI_VS, DVI_DE;
-
 // internal oscillator
 cyclone10lp_oscillator osc ( 
     .clkout(OSC_CLK),
@@ -126,28 +118,20 @@ mem_pll mem_pll (
 
 wire clk_pixel_x5;
 wire clk_pixel;
-wire clk_audio;
-hdmi_pll hdmi_pll(.inclk0(CLK_48MHZ), .c0(clk_pixel), .c1(clk_pixel_x5), .c2(clk_audio));
-
-localparam AUDIO_BIT_WIDTH = 16;
-localparam AUDIO_RATE = 48000;
-localparam WAVE_RATE = 480;
-
-logic [AUDIO_BIT_WIDTH-1:0] audio_sample_word;
-// sawtooth #(.BIT_WIDTH(AUDIO_BIT_WIDTH), .SAMPLE_RATE(AUDIO_RATE), .WAVE_RATE(WAVE_RATE)) sawtooth (.clk_audio(clk_audio), .level(audio_sample_word));
+hdmi_pll hdmi_pll(.inclk0(CLK_48MHZ), .c0(clk_pixel), .c1(clk_pixel_x5));
 
 logic [23:0] rgb;
 logic [9:0] cx, cy, screen_start_x, screen_start_y;
-hdmi #(.VIDEO_ID_CODE(1), .DDRIO(1), .AUDIO_RATE(AUDIO_RATE), .AUDIO_BIT_WIDTH(AUDIO_BIT_WIDTH)) hdmi(.clk_pixel_x10(clk_pixel_x5), .clk_pixel(clk_pixel), .clk_audio(clk_audio), .rgb(rgb), .audio_sample_word('{audio_sample_word, audio_sample_word}), .tmds_p(HDMI_TX), .tmds_clock_p(HDMI_CLK), .tmds_n(HDMI_TX_N), .tmds_clock_n(HDMI_CLK_N), .cx(cx), .cy(cy), .screen_start_x(screen_start_x), .screen_start_y(screen_start_y));
+hdmi #(.VIDEO_ID_CODE(1), .DDRIO(1), .DVI_OUTPUT(1)) hdmi(.clk_pixel_x10(clk_pixel_x5), .clk_pixel(clk_pixel), .rgb(rgb), .tmds_p(HDMI_TX), .tmds_clock_p(HDMI_CLK), .tmds_n(HDMI_TX_N), .tmds_clock_n(HDMI_CLK_N), .cx(cx), .cy(cy), .screen_start_x(screen_start_x), .screen_start_y(screen_start_y));
 
 logic [1:0] command = 2'd0;
-logic [21:0] data_address = {2'b01, 20'hCAFEE};
-logic [15:0] data_write = 16'h1234;
+logic [21:0] data_address = 22'd0;
+logic [15:0] data_write = 16'd0;
 logic [15:0] data_read;
 logic data_read_valid;
 logic data_write_done;
 
-as4c4m16sa as4c4m16sa (
+as4c4m16sa #(.CLK_RATE(143000000), .WRITE_BURST(0), .READ_BURST_LENGTH(8)) as4c4m16sa (
 	.clk(SDRAM_CLK),
   .command(command),
   .data_address(data_address),
@@ -166,46 +150,86 @@ as4c4m16sa as4c4m16sa (
   .dq(SDRAM_DQ)
 );
 
-logic [1:0] state = 2'd0;
-logic [7:0] codepoints [0:3] = '{8'h2a, 8'h2a, 8'h2a, 8'h2a};
+logic [15:0] buffer [31:0];
+logic [4:0] producer = 5'd0;
+logic [4:0] consumer = 5'd0;
+logic [4:0] diff;
+assign diff = producer >= consumer ? (producer - consumer) : ~(consumer - producer);
+
+logic no_more_writes = 1'd0;
+logic [2:0] read_countdown = 3'd0;
 always @(posedge SDRAM_CLK)
 begin
-  if (state == 2'd0)
+  if (command == 2'd0 && !no_more_writes)
   begin
     command <= 2'd1;
-    state <= state + 1'd1;
-    codepoints[0] <= 8'h23;
   end
-  else if (state == 2'd1 && data_write_done)
-  begin
-    command <= 2'd2;
-    state <= state + 1'd1;
-    codepoints[0] <= 8'h24;
-  end
-  else if (state == 2'd2 && data_read_valid)
+  else if (command == 2'd1 && data_write_done)
   begin
     command <= 2'd0;
-    codepoints <= '{data_read[15:12] + 8'h30, data_read[11:8] + 8'h30, data_read[7:4] + 8'h30, data_read[3:0] + 8'h30};
-    state <= state + 1'd1;
+    data_address <= data_address + 1'd1 == 22'd307200 ? 22'd0 : data_address + 1'd1;
+    if (data_address == 22'd307200 - 1'd1)
+    begin
+      no_more_writes <= 1'b1;
+      data_write <= 16'd0;
+    end
+    else
+      data_write <= data_write + 1'd1;
+  end
+  else if (command == 2'd2 && data_read_valid)
+  begin
+    if (read_countdown == 3'd0)
+    begin
+      command <= 2'd0;
+    end
+    else
+    begin
+      producer <= producer + 1'd1;
+      buffer[producer] <= data_read;
+      read_countdown <= read_countdown - 1'd1;
+      data_address <= data_address + 1'd1 == 22'd307200 ? 22'd0 : data_address + 1'd1;
+    end
+  end
+  else if (command == 2'd0 && no_more_writes && diff < 5'd20)
+  begin
+    command <= 2'd2;
+    read_countdown <= 3'd7;
   end
 end
 
-
-logic [1:0] counter = 2'd0;
-logic [5:0] prevcy = 6'd0;
 always @(posedge clk_pixel)
 begin
-    if (cy == 10'd0)
+  if (cx >= screen_start_x && cy >= screen_start_y)
+  begin
+    // rgb <= {6'(cy-screen_start_y), (cx - screen_start_x), 8'd0};
+    if (consumer != producer)
     begin
-        prevcy <= 6'd0;
+      consumer <= consumer + 1'd1;
+      rgb <= {buffer[consumer], 8'd0};
     end
-    else if (prevcy != cy[9:4])
-    begin
-        counter <= counter + 1'd1;
-        prevcy <= cy[9:4];
-    end
+    else
+      rgb <= 24'h0000ff;
+  end
 end
 
-console console(.clk_pixel(clk_pixel), .codepoint(codepoints[counter]), .attribute({cx[9], cy[8:6], cx[8:5]}), .cx(cx), .cy(cy), .rgb(rgb));
+// logic [7:0] codepoints [0:3];
+// always @(posedge SDRAM_CLK) codepoints <= '{state + 8'h30, producer + 8'h30, diff + 8'h30, no_more_writes + 8'h30};//'{image_data[1][7:4] + 8'h30, image_data[1][7:4] + 8'h30, image_data[0][7:4] + 8'h30, image_data[0][3:0] + 8'h30};
+
+// logic [1:0] codepoint_counter = 2'd0;
+// logic [5:0] prevcy = 6'd0;
+// always @(posedge clk_pixel)
+// begin
+//     if (cy == 10'd0)
+//     begin
+//         prevcy <= 6'd0;
+//     end
+//     else if (prevcy != cy[9:4])
+//     begin
+//         codepoint_counter <= codepoint_counter + 1'd1;
+//         prevcy <= cy[9:4];
+//     end
+// end
+
+// console console(.clk_pixel(clk_pixel), .codepoint(codepoints[codepoint_counter]), .attribute({cx[9], cy[8:6], cx[8:5]}), .cx(cx), .cy(cy), .rgb(rgb));
 
 endmodule
