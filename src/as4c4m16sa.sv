@@ -252,7 +252,7 @@ begin
 		begin
 			// $display("Read done");
 			state <= 3'd4;
-			countdown <= COUNTER_WIDTH'(CAS_LATENCY + PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK);
+			countdown <= COUNTER_WIDTH'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK - 1);
 			destination_state <= 3'd1;
 			data_read_valid <= 1'b0;
 		end
