@@ -20,6 +20,7 @@ The commonly used Intel `altera_avalon_new_sdram_controller` is proprietary and 
 * **Precharge**: a required step in DRAM operation that sets the line voltage to Vcc / 2 (3.3V / 2) in anticipation of the next operation
 * **Refresh**: restores the charge in the cells by rewriting them, preventing the loss of data
 * **Self Refresh**: a low power mode where the SDRAM chip is able to refresh itself
+* **DQM**: turning on DQ-masking disables the output during a read and masks the input during a write. Used to avoid I/O contention.
 
 ### Troubleshooting
 

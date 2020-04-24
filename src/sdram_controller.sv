@@ -8,6 +8,7 @@ module sdram_controller #(
 	parameter ROW_ADDRESS_WIDTH,
 	parameter COLUMN_ADDRESS_WIDTH,
 	parameter DATA_WIDTH,
+	parameter DQM_WIDTH,
 	parameter CAS_LATENCY,
 	parameter ROW_CYCLE_TIME,
 	parameter RAS_TO_CAS_DELAY,
@@ -45,8 +46,8 @@ module sdram_controller #(
 	output logic row_address_strobe,
 	output logic column_address_strobe,
 	output logic write_enable,
-	output logic [1:0] dqm = 2'b11,
-	inout wire [15:0] dq
+	output logic [DQM_WIDTH-1:0] dqm = {DQM_WIDTH{1'b1}},
+	inout wire [DATA_WIDTH-1:0] dq
 );
 
 localparam ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
@@ -203,7 +204,7 @@ begin
 			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
 			address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
 			step <= STEP_WIDTH'(0);
-			dqm <= 2'b00; // Don't mask input, enable output
+			dqm <= {DQM_WIDTH{1'b0}}; // Don't mask input, enable output
 		end
 		else
 		begin
@@ -240,7 +241,7 @@ begin
 			countdown <= COUNTER_WIDTH'(WRITE_RECOVERY_CLOCKS - 2);
 			destination_state <= STATE_PRECHARGE;
 			data_write_done <= 1'b0;
-			dqm <= 2'b11; // Enable masking
+			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 			internal_dq <= {DATA_WIDTH{1'b0}};
 		end
 		else // Still writing
@@ -275,7 +276,7 @@ begin
 		begin
 			state <= STATE_PRECHARGE;
 			data_read_valid <= 1'b0;
-			dqm <= 2'b11; // Enable masking
+			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 		end
 		else if (step >= STEP_WIDTH'(CAS_LATENCY + 1)) // Still reading
 		begin
