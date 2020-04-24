@@ -64,29 +64,35 @@ begin
     last_cke <= cke;
     if (!last_cke && cke)
     begin
-        $display("Clock enabled");
+        // $display("Clock enabled");
     end
     if (last_cke)
     begin
         if (!ras && cas && !we && address[10])
-            $display("PrechargeAll");
+        begin
+            // $display("PrechargeAll");
+        end
         else if (!ras && cas && !we && !address[10])
-            $display("BankPrecharge");
+        begin
+            // $display("BankPrecharge");
+        end
         else if (!ras && !cas && !we)
         begin
             if (ba[0])
             begin
-                $display("Extended Mode Register Set: %b", address);
+                // $display("Extended Mode Register Set: %b", address);
                 extended_mode_register <= address;
             end
             else
             begin
-                $display("Mode Register Set: %b", address);
+                // $display("Mode Register Set: %b", address);
                 mode_register <= address;
             end
         end
         else if (!ras && !cas && we)
-            $display("AutoRefresh");
+        begin
+            // $display("AutoRefresh");
+        end
         else if (!ras && cas && we)
         begin
             // $display("BankActivate: %d @ 0x%h", ba, address);
@@ -137,9 +143,9 @@ begin
     else if (command == 2'd1 && data_write_done)
     begin
         command <= 2'd0;
-        data_address <= data_address + 1'd1 == 22'h0_0ff_ff ? 22'd0 : data_address + 1'd1;
+        data_address <= data_address + 1'd1 == 22'h0_100_00 ? 22'd0 : data_address + 1'd1;
         data_write <= data_write + 1'd1;
-        if (data_address + 1'd1 == 22'h0_0ff_ff)
+        if (data_address + 1'd1 == 22'h0_100_00)
             write_done <= 1'd1;
     end
     else if (command == 2'd0 && write_done)
@@ -149,12 +155,25 @@ begin
     else if (command == 2'd2 && data_read_valid)
     begin
         command <= 2'd0;
-        data_address <= data_address + 1'd1 == 22'h0_0ff_ff ? 22'd0 : data_address + 1'd1;
+        data_address <= data_address + 1'd1 == 22'h0_100_00 ? 22'd0 : data_address + 1'd1;
         data_write <= data_write + 1'd1;
         assert (data_address[15:0] == data_read) else $fatal(1, "Not equal for %h @ 0x%h", data_read, data_address);
-        if (data_address + 1'd1 == 22'h0_0ff_ff)
+        if (data_address + 1'd1 == 22'h0_100_00)
             $finish;
     end
+end
+
+initial
+begin
+    assert (as4c4m16sa.ROW_CYCLE_TIME == 9) else $fatal(1, "%d", as4c4m16sa.ROW_CYCLE_TIME);
+    assert (as4c4m16sa.RAS_TO_CAS_DELAY == 3) else $fatal(1, "");
+    assert (as4c4m16sa.PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK == 3) else $fatal(1, "");
+    assert (as4c4m16sa.ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK == 2) else $fatal(1, "");
+    assert (as4c4m16sa.ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK == 6) else $fatal(1, "");
+    assert (as4c4m16sa.AVERAGE_REFRESH_INTERVAL_TIME == 2231) else $fatal(1, "%d", as4c4m16sa.AVERAGE_REFRESH_INTERVAL_TIME);
+    assert (as4c4m16sa.REFRESH_TIMER_WIDTH == 12) else $fatal(1, "%d", as4c4m16sa.REFRESH_TIMER_WIDTH);
+    assert (as4c4m16sa.COUNTER_WIDTH == 4) else $fatal(1, "%d", as4c4m16sa.COUNTER_WIDTH);
+    assert (as4c4m16sa.STEP_WIDTH == 3) else $fatal(1, "%d", as4c4m16sa.STEP_WIDTH);
 end
 
 endmodule

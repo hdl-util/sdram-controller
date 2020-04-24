@@ -102,7 +102,6 @@ module mkrvidor4000_top
 
 );
 
-// signal declaration
 wire OSC_CLK;
 
 // internal oscillator
@@ -111,12 +110,10 @@ cyclone10lp_oscillator osc (
     .oscena(1'b1)
 );
 
-mem_pll mem_pll (
-    .inclk0(CLK_48MHZ),
-    .c0(SDRAM_CLK)
-);
+mem_pll mem_pll(.inclk0(CLK_48MHZ), .c0(SDRAM_CLK));
 
 wire clk_pixel_x5;
+// assign SDRAM_CLK = clk_pixel_x5;
 wire clk_pixel;
 hdmi_pll hdmi_pll(.inclk0(CLK_48MHZ), .c0(clk_pixel), .c1(clk_pixel_x5));
 
@@ -131,7 +128,9 @@ logic [15:0] data_read;
 logic data_read_valid;
 logic data_write_done;
 
-as4c4m16sa #(.CLK_RATE(143000000), .WRITE_BURST(0), .READ_BURST_LENGTH(8)) as4c4m16sa (
+localparam WRITE_BURST = 1;
+localparam READ_BURST_LENGTH = 1;
+as4c4m16sa #(.CLK_RATE(100000000), .WRITE_BURST(WRITE_BURST), .READ_BURST_LENGTH(READ_BURST_LENGTH), .CAS_LATENCY(2)) as4c4m16sa (
 	.clk(SDRAM_CLK),
   .command(command),
   .data_address(data_address),
@@ -150,86 +149,116 @@ as4c4m16sa #(.CLK_RATE(143000000), .WRITE_BURST(0), .READ_BURST_LENGTH(8)) as4c4
   .dq(SDRAM_DQ)
 );
 
-logic [15:0] buffer [31:0];
-logic [4:0] producer = 5'd0;
-logic [4:0] consumer = 5'd0;
-logic [4:0] diff;
-assign diff = producer >= consumer ? (producer - consumer) : ~(consumer - producer);
-
 logic no_more_writes = 1'd0;
-logic [2:0] read_countdown = 3'd0;
+logic [7:0] countdown = 3'd0;
+logic errored = 1'd0;
+
+// always @(posedge SDRAM_CLK)
+// begin
+//   if (command == 2'd0)
+//   begin
+//     if (!errored)
+//     begin
+//       command <= 2'd1;
+//       countdown <= WRITE_BURST ? 3'(READ_BURST_LENGTH - 1) : 3'd0;
+//       codepoints <= '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h47, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
+//     end
+//   end
+//   else if (command == 2'd1 && data_write_done)
+//   begin
+//     data_write <= data_write + 1'd1;
+//     if (countdown == 3'd0)
+//     begin
+//       command <= 2'd2;
+//       countdown <= 3'(READ_BURST_LENGTH - 1);
+//     end
+//     else
+//       countdown <= countdown - 1'd1;
+//   end
+//   else if (command == 2'd2 && data_read_valid)
+//   begin
+//     if (countdown == 3'd0)
+//     begin
+//       data_address <= data_address + READ_BURST_LENGTH;
+//       command <= 2'd0;
+//     end
+//     else
+//       countdown <= countdown - 1'd1;
+//     if (!errored && data_read != (data_address[15:0] + 3'(READ_BURST_LENGTH - 1) - countdown))
+//     begin
+//       codepoints <= '{8'h30 + countdown, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0] + (3'(READ_BURST_LENGTH - 1) - countdown), 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0] + (3'(READ_BURST_LENGTH-1) - countdown)};
+//       errored <= 1'b1;
+//     end
+//   end
+// end
+
 always @(posedge SDRAM_CLK)
 begin
   if (command == 2'd0 && !no_more_writes)
   begin
     command <= 2'd1;
+    countdown <= WRITE_BURST ? 8'(READ_BURST_LENGTH - 1) : 8'd0;
   end
   else if (command == 2'd1 && data_write_done)
   begin
-    command <= 2'd0;
-    data_address <= data_address + 1'd1 == 22'd307200 ? 22'd0 : data_address + 1'd1;
-    if (data_address == 22'd307200 - 1'd1)
-    begin
-      no_more_writes <= 1'b1;
-      data_write <= 16'd0;
-    end
+    if (countdown == 3'd0)
+      command <= 2'd0;
     else
-      data_write <= data_write + 1'd1;
+      countdown <= countdown - 1'd1;
+
+    data_address <= data_address == 22'h0_000_ff ? 22'd0 : data_address + 1'd1;
+    data_write <= data_write + 1'd1;
+    if (data_address == 22'h0_000_ff)
+      no_more_writes <= 1'b1;
   end
   else if (command == 2'd2 && data_read_valid)
   begin
-    if (read_countdown == 3'd0)
-    begin
+    if (countdown == 3'd0)
       command <= 2'd0;
+    else
+      countdown <= countdown - 1'd1;
+
+    data_address <= data_address == 22'h0_000_ff ? 22'd0 : data_address + 1'd1;
+    data_write <= data_write + 1'd1;
+    if (!errored && data_address == 22'h0_000_ff)
+    begin
+      codepoints <= '{8'd2, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0], 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_write[15:12], 8'h30 + data_write[11:8], 8'h30 + data_write[7:4], 8'h30 + data_write[3:0]};
+      // errored <= 1'b1;
+    end
+  end
+  else if (command == 2'd0 && no_more_writes && !errored)
+  begin
+    if (data_address[2:0] % READ_BURST_LENGTH != 3'd0) // Will be subject to sequential effects
+    begin
+      codepoints <= '{8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127};
+      errored <= 1'b1;
     end
     else
     begin
-      producer <= producer + 1'd1;
-      buffer[producer] <= data_read;
-      read_countdown <= read_countdown - 1'd1;
-      data_address <= data_address + 1'd1 == 22'd307200 ? 22'd0 : data_address + 1'd1;
+      command <= 2'd2;
+      countdown <= 8'(READ_BURST_LENGTH - 1);
     end
-  end
-  else if (command == 2'd0 && no_more_writes && diff < 5'd20)
-  begin
-    command <= 2'd2;
-    read_countdown <= 3'd7;
   end
 end
 
+
+logic [7:0] codepoints [0:15] = '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h2, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
+
+logic [3:0] codepoint_counter = 4'd0;
+logic [5:0] prevcy = 6'd0;
 always @(posedge clk_pixel)
 begin
-  if (cx >= screen_start_x && cy >= screen_start_y)
-  begin
-    // rgb <= {6'(cy-screen_start_y), (cx - screen_start_x), 8'd0};
-    if (consumer != producer)
+    if (cy == 10'd0)
     begin
-      consumer <= consumer + 1'd1;
-      rgb <= {buffer[consumer], 8'd0};
+        prevcy <= 6'd0;
     end
-    else
-      rgb <= 24'h0000ff;
-  end
+    else if (prevcy != cy[9:4])
+    begin
+        codepoint_counter <= codepoint_counter + 1'd1;
+        prevcy <= cy[9:4];
+    end
 end
 
-// logic [7:0] codepoints [0:3];
-// always @(posedge SDRAM_CLK) codepoints <= '{state + 8'h30, producer + 8'h30, diff + 8'h30, no_more_writes + 8'h30};//'{image_data[1][7:4] + 8'h30, image_data[1][7:4] + 8'h30, image_data[0][7:4] + 8'h30, image_data[0][3:0] + 8'h30};
-
-// logic [1:0] codepoint_counter = 2'd0;
-// logic [5:0] prevcy = 6'd0;
-// always @(posedge clk_pixel)
-// begin
-//     if (cy == 10'd0)
-//     begin
-//         prevcy <= 6'd0;
-//     end
-//     else if (prevcy != cy[9:4])
-//     begin
-//         codepoint_counter <= codepoint_counter + 1'd1;
-//         prevcy <= cy[9:4];
-//     end
-// end
-
-// console console(.clk_pixel(clk_pixel), .codepoint(codepoints[codepoint_counter]), .attribute({cx[9], cy[8:6], cx[8:5]}), .cx(cx), .cy(cy), .rgb(rgb));
+console console(.clk_pixel(clk_pixel), .codepoint(codepoints[codepoint_counter]), .attribute({cx[9], cy[8:6], cx[8:5]}), .cx(cx), .cy(cy), .rgb(rgb));
 
 endmodule

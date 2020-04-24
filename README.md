@@ -10,7 +10,7 @@ The SDRAM controller Arduino uses for this chip is proprietary Intel IP: `altera
 
 1. Take files from `src/` and add them to your own project. If you use [hdlmake](https://hdlmake.readthedocs.io/en/master/), you can add this repository itself as a remote module.
 1. Other helpful modules are also available in this GitHub organization.
-1. See `top/mkrvidor4000_quartus/mkrvidor4000_top.sv` for a usage example.
+1. See `top/mkrvidor4000_quartus/mkrvidor4000_top.sv` for a usage example, where each address is written with its 16 least significant bits and replayed to verify.
 1. Read through the parameters in `as4c4m16sa.sv` and tailor any instantiations to your situation.
 1. Please create an issue if you run into a problem or have any questions. Make sure you have consulted the troubleshooting section first.
 
