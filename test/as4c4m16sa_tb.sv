@@ -25,7 +25,7 @@ logic [15:0] dq_in = 16'dx;
 logic inoutmode = 1'b0;
 assign dq = inoutmode ? dq_in : 16'dz;
 
-as4c4m16sa as4c4m16sa (
+as4c4m16sa_controller #(.CAS_LATENCY(2)) as4c4m16sa ( // have to fake the CAS latency here so the tests can be simpler
 	.clk(SDRAM_CLK),
     .command(command),
     .data_address(data_address),
@@ -106,8 +106,8 @@ begin
         end
         else if (ras && !cas && we)
         begin
-            column_address = address[7:0];
-            read_countdown = burst_size;
+            column_address <= address[7:0];
+            read_countdown <= burst_size;
         end
 
         assert (~(write_countdown != 9'd0) || ~(read_countdown != 9'd0)) else $fatal(1, "I/O conflict, cancelled reads/writes not implemented");
@@ -165,15 +165,15 @@ end
 
 initial
 begin
-    assert (as4c4m16sa.ROW_CYCLE_TIME == 9) else $fatal(1, "%d", as4c4m16sa.ROW_CYCLE_TIME);
-    assert (as4c4m16sa.RAS_TO_CAS_DELAY == 3) else $fatal(1, "");
-    assert (as4c4m16sa.PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK == 3) else $fatal(1, "");
-    assert (as4c4m16sa.ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK == 2) else $fatal(1, "");
-    assert (as4c4m16sa.ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK == 6) else $fatal(1, "");
-    assert (as4c4m16sa.AVERAGE_REFRESH_INTERVAL_TIME == 2231) else $fatal(1, "%d", as4c4m16sa.AVERAGE_REFRESH_INTERVAL_TIME);
-    assert (as4c4m16sa.REFRESH_TIMER_WIDTH == 12) else $fatal(1, "%d", as4c4m16sa.REFRESH_TIMER_WIDTH);
-    assert (as4c4m16sa.COUNTER_WIDTH == 4) else $fatal(1, "%d", as4c4m16sa.COUNTER_WIDTH);
-    assert (as4c4m16sa.STEP_WIDTH == 3) else $fatal(1, "%d", as4c4m16sa.STEP_WIDTH);
+    assert (as4c4m16sa.sdram_controller.ROW_CYCLE_CLOCKS == 9) else $fatal(1, "%d", as4c4m16sa.sdram_controller.ROW_CYCLE_CLOCKS);
+    assert (as4c4m16sa.sdram_controller.RAS_TO_CAS_DELAY_CLOCKS == 3) else $fatal(1, "");
+    assert (as4c4m16sa.sdram_controller.PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS == 3) else $fatal(1, "");
+    assert (as4c4m16sa.sdram_controller.ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_CLOCKS == 2) else $fatal(1, "");
+    assert (as4c4m16sa.sdram_controller.ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_CLOCKS == 6) else $fatal(1, "");
+    assert (as4c4m16sa.sdram_controller.AVERAGE_REFRESH_INTERVAL_CLOCKS == 2231) else $fatal(1, "%d", as4c4m16sa.sdram_controller.AVERAGE_REFRESH_INTERVAL_CLOCKS);
+    assert (as4c4m16sa.sdram_controller.REFRESH_TIMER_WIDTH == 12) else $fatal(1, "%d", as4c4m16sa.sdram_controller.REFRESH_TIMER_WIDTH);
+    assert (as4c4m16sa.sdram_controller.COUNTER_WIDTH == 15) else $fatal(1, "%d", as4c4m16sa.sdram_controller.COUNTER_WIDTH);
+    assert (as4c4m16sa.sdram_controller.STEP_WIDTH == 3) else $fatal(1, "%d", as4c4m16sa.sdram_controller.STEP_WIDTH);
 end
 
 endmodule

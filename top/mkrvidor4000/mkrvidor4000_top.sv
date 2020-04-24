@@ -130,7 +130,7 @@ logic data_write_done;
 
 localparam WRITE_BURST = 1;
 localparam READ_BURST_LENGTH = 1;
-as4c4m16sa #(.CLK_RATE(100000000), .WRITE_BURST(WRITE_BURST), .READ_BURST_LENGTH(READ_BURST_LENGTH), .CAS_LATENCY(2)) as4c4m16sa (
+as4c4m16sa_controller #(.CLK_RATE(100000000), .WRITE_BURST(WRITE_BURST), .READ_BURST_LENGTH(READ_BURST_LENGTH), .CAS_LATENCY(2)) as4c4m16sa_controller (
 	.clk(SDRAM_CLK),
   .command(command),
   .data_address(data_address),
