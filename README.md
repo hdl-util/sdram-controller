@@ -1,6 +1,6 @@
 # Generic Synchronous DRAM Controller
 
-[![Build Status](https://travis-ci.com/hdl-util/sdram_controller.svg?branch=master)](https://travis-ci.com/hdl-util/sdram_controller)
+[![Build Status](https://travis-ci.com/hdl-util/sdram-controller.svg?branch=master)](https://travis-ci.com/hdl-util/sdram-controller)
 
 ## Why?
 
