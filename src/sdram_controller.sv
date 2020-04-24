@@ -1,20 +1,28 @@
 module sdram_controller #(
     parameter CLK_RATE, // Speed of your sdram clock in Hz
 	parameter READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page). All other values are reserved.
-	parameter WRITE_BURST = 0, // 0 = Single write mode, 1 = Burst write mode (same length as read burst)
+	parameter WRITE_BURST = "OFF", // OFF = Single write mode, ON = Burst write mode (same length as read burst)
 	// All parameters below are measured in floating point seconds (i.e. 1ns = 1E-9).
 	// They should be obtained from the datasheet for your chip.
+	parameter BANK_ADDRESS_WIDTH,
+	parameter ROW_ADDRESS_WIDTH,
+	parameter COLUMN_ADDRESS_WIDTH,
+	parameter DATA_WIDTH,
 	parameter CAS_LATENCY,
 	parameter ROW_CYCLE_TIME,
 	parameter RAS_TO_CAS_DELAY,
 	parameter PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME,
 	parameter ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME,
 	parameter ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME,
-	// Some SDRAM chips require a minimum clock stability time prior to initialization. If it's not in the datasheet, you can just 
+	// Some SDRAM chips require a minimum clock stability time prior to initialization. If it's not in the datasheet, you can try setting it to 0.
 	parameter MINIMUM_STABLE_CONDITION_TIME,
 	parameter MODE_REGISTER_SET_CYCLE_TIME,
 	parameter WRITE_RECOVERY_TIME,
-	parameter AVERAGE_REFRESH_INTERVAL_TIME
+	parameter AVERAGE_REFRESH_INTERVAL_TIME,
+
+	// Please do not set these parameters
+	parameter USER_ADDRESS_WIDTH = BANK_ADDRESS_WIDTH + ROW_ADDRESS_WIDTH + COLUMN_ADDRESS_WIDTH,
+	parameter CHIP_ADDRESS_WIDTH = (ROW_ADDRESS_WIDTH > COLUMN_ADDRESS_WIDTH ? ROW_ADDRESS_WIDTH : COLUMN_ADDRESS_WIDTH)
 ) (
 	input logic clk,
 
@@ -23,16 +31,16 @@ module sdram_controller #(
 	// 2 = Read (with Auto Precharge)
 	// 3 = Self Refresh (TODO)
 	input logic [1:0] command,
-	input logic [21:0] data_address,
-	input logic [15:0] data_write,
-	output logic [15:0] data_read,
+	input logic [USER_ADDRESS_WIDTH-1:0] data_address,
+	input logic [DATA_WIDTH-1:0] data_write,
+	output logic [DATA_WIDTH-1:0] data_read,
 	output logic data_read_valid = 1'b0, // goes high when a burst-read is ready
 	output logic data_write_done = 1'b0, // goes high once the first write of a burst-write / single-write is done
 
 	// These ports should be connected directly to the SDRAM chip
 	output logic clock_enable = 1'b0,
-	output logic [1:0] bank_activate,
-	output logic [11:0] address,
+	output logic [BANK_ADDRESS_WIDTH-1:0] bank_activate,
+	output logic [CHIP_ADDRESS_WIDTH-1:0] address,
 	output logic chip_select,
 	output logic row_address_strobe,
 	output logic column_address_strobe,
@@ -40,8 +48,6 @@ module sdram_controller #(
 	output logic [1:0] dqm = 2'b11,
 	inout wire [15:0] dq
 );
-
-localparam READ_BURST_BITS = READ_BURST_LENGTH == 1 ? 3'd0 : READ_BURST_LENGTH == 2 ? 3'd1 : READ_BURST_LENGTH == 4 ? 3'd2 : READ_BURST_LENGTH == 8 ? 3'd3 : READ_BURST_LENGTH == 256 ? 3'd7 : 3'd0;
 
 localparam ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
 localparam RAS_TO_CAS_DELAY_CLOCKS = $unsigned(integer'(RAS_TO_CAS_DELAY * CLK_RATE));
@@ -88,8 +94,8 @@ logic [2:0] destination_state = STATE_UNINIT;
 localparam STEP_WIDTH = $clog2(READ_BURST_LENGTH == 1 ? $unsigned(8) : $unsigned(READ_BURST_LENGTH + 2 + CAS_LATENCY));
 logic [STEP_WIDTH-1:0] step = STEP_WIDTH'(0);
 
-logic [15:0] internal_dq = 16'd0;
-assign dq = state == STATE_WRITING ? internal_dq : 16'hzzzz; // Tri-State driver
+logic [DATA_WIDTH-1:0] internal_dq = DATA_WIDTH'(0);
+assign dq = state == STATE_WRITING ? internal_dq : {DATA_WIDTH{1'bz}}; // Tri-State driver
 
 
 localparam [3:0] CMD_BANK_ACTIVATE = 4'd0;
@@ -112,7 +118,6 @@ begin
 	if (state == STATE_UNINIT)
 	begin
 		step <= step + 1'd1;
-		// $display("Initializing %d", step);
 		// See Note 11 on page 20: Power up Sequence
 		if (step == 3'd0)
 		begin
@@ -121,15 +126,15 @@ begin
 			destination_state <= STATE_UNINIT;
 			clock_enable <= 1'b0;
 			internal_command <= CMD_NO_OP;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 		else if (step == 3'd1) // Power Down Mode Exit
 		begin
 			clock_enable <= 1'b1;
 			internal_command <= CMD_NO_OP;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 		else if (step == 3'd2) // Pre-charge all banks
 		begin
@@ -137,8 +142,11 @@ begin
 			countdown <= COUNTER_WIDTH'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS - 1);
 			destination_state <= STATE_UNINIT;
 			internal_command <= CMD_PRECHARGE_ALL;
-			bank_activate <= 2'dx;
-			address <= {1'bx, 1'b1, 10'dx};
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			if (CHIP_ADDRESS_WIDTH > 11)
+				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
+			address[10] <= 1'b1;
+			address[9:0] <= 10'dx;
 		end
 		// else if (step == 3'd3) // Extended mode register set
 		// begin
@@ -155,8 +163,15 @@ begin
 			countdown <= COUNTER_WIDTH'(MODE_REGISTER_SET_CLOCKS - 1);
 			destination_state <= STATE_UNINIT;
 			internal_command <= CMD_MODE_REGISTER_SET;
-			bank_activate <= 2'b00;
-			address <= {2'b00, WRITE_BURST == 1 ? 1'b0: 1'b1, 2'b00, CAS_LATENCY == 2 ? 3'b010 : 3'b011, 1'b0,  READ_BURST_BITS};
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'b0}};
+			if (CHIP_ADDRESS_WIDTH > 11)
+				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'b0}}; // 0 is a safe default for unknown manufacturer-specific mode values
+			address[10] <= 1'b0; // Also low, reserved for future use
+			address[9] <= WRITE_BURST == "ON" ? 1'b0: 1'b1;
+			address[8:7] <= 2'b00; // Standard operation mode, others reserved for future use
+			address[6:4] <= 3'(CAS_LATENCY);
+			address[3] <= 1'b0; // Sequential Burst Type
+			address[2:0] <= READ_BURST_LENGTH == 1 ? 3'd0 : READ_BURST_LENGTH == 2 ? 3'd1 : READ_BURST_LENGTH == 4 ? 3'd2 : READ_BURST_LENGTH == 8 ? 3'd3 : READ_BURST_LENGTH == 256 ? 3'd7 : 3'd0;
 		end
 		else if (step == 3'd4 || step == 3'd5) // Double auto refresh
 		begin
@@ -164,31 +179,29 @@ begin
 			countdown <= COUNTER_WIDTH'(ROW_CYCLE_CLOCKS - 1);
 			destination_state <= step == 3'd5 ? STATE_IDLE : STATE_UNINIT;
 			internal_command <= CMD_AUTO_REFRESH;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 	end
 	else if (state == STATE_IDLE)
 	begin
 		if (refresh_timer >= REFRESH_TIMER_END) // Refresh timer expires
 		begin
-			// $display("Refreshing");
 			state <= STATE_WAITING;
 			countdown <= COUNTER_WIDTH'(ROW_CYCLE_CLOCKS - 1);
 			destination_state <= STATE_IDLE;
 			internal_command <= CMD_AUTO_REFRESH;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 		else if (command == 2'd1 || command == 2'd2) // Write or Read (does a bank activate)
 		begin
-			// $display("Enter R/W");
 			state <= STATE_WAITING;
 			countdown <= COUNTER_WIDTH'(RAS_TO_CAS_DELAY_CLOCKS - 1);
 			destination_state <= command == 2'd1 ? STATE_WRITING : STATE_READING; // go to the correct state
 			internal_command <= CMD_BANK_ACTIVATE;
-			bank_activate <= data_address[21:20];
-			address <= data_address[19:8];
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
+			address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
 			step <= STEP_WIDTH'(0);
 			dqm <= 2'b00; // Don't mask input, enable output
 		end
@@ -196,8 +209,8 @@ begin
 		begin
 			state <= STATE_IDLE;
 			internal_command <= CMD_NO_OP;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 	end
 	else if (state == STATE_WRITING)
@@ -206,17 +219,19 @@ begin
 		if (step == STEP_WIDTH'(0))
 		begin
 			internal_command <= CMD_WRITE;
-			bank_activate <= data_address[21:20];
-			address[11] <= 1'dx;
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
+			if (CHIP_ADDRESS_WIDTH > 11)
+				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
 			address[10] <= 1'b0;
-			address[9:8] <= 2'dx;
-			address[7:0] <= data_address[7:0];
+			if (COLUMN_ADDRESS_WIDTH < 10)
+				address[9:COLUMN_ADDRESS_WIDTH] <= {10-COLUMN_ADDRESS_WIDTH{1'bx}};
+			address[COLUMN_ADDRESS_WIDTH-1:0] <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH : 0];
 		end
 		else
 		begin
 			internal_command <= CMD_NO_OP;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
 		if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH : 1)) // Last write just finished
@@ -226,7 +241,7 @@ begin
 			destination_state <= STATE_PRECHARGE;
 			data_write_done <= 1'b0;
 			dqm <= 2'b11; // Enable masking
-			internal_dq <= 16'd0;
+			internal_dq <= {DATA_WIDTH{1'b0}};
 		end
 		else // Still writing
 		begin
@@ -236,27 +251,28 @@ begin
 	end
 	else if (state == STATE_READING)
 	begin
-		internal_dq <= 16'dx;
+		internal_dq <= {DATA_WIDTH{1'bx}};
 		step <= step + 1'd1;
 		if (step == STEP_WIDTH'(0)) // Read
 		begin
 			internal_command <= CMD_READ;
-			bank_activate <= data_address[21:20];
-			address[11] <= 1'dx;
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
+			if (CHIP_ADDRESS_WIDTH > 11)
+				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
 			address[10] <= 1'b0;
-			address[9:8] <= 2'dx;
-			address[7:0] <= data_address[7:0];
+			if (COLUMN_ADDRESS_WIDTH < 10)
+				address[9:COLUMN_ADDRESS_WIDTH] <= {10-COLUMN_ADDRESS_WIDTH{1'bx}};
+			address[COLUMN_ADDRESS_WIDTH-1:0] <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH : 0];
 		end
 		else // No-Operation
 		begin
 			internal_command <= CMD_NO_OP;
-			bank_activate <= 2'dx;
-			address <= 12'dx;
+			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
 		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH + 1)) // Last read just finished
 		begin
-			// $display("Read done");
 			state <= STATE_PRECHARGE;
 			data_read_valid <= 1'b0;
 			dqm <= 2'b11; // Enable masking
@@ -268,7 +284,7 @@ begin
 		end
 		else
 		begin
-			data_read <= 16'd0;
+			data_read <= {DATA_WIDTH{1'bx}};
 			data_read_valid <= 1'd0;
 		end
 	end
@@ -279,8 +295,8 @@ begin
 		else
 			countdown <= countdown - 1'd1;
 		internal_command <= CMD_NO_OP;
-		bank_activate <= 2'dx;
-		address <= 12'dx;
+		bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+		address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 	end
 	else if (state == STATE_PRECHARGE)
 	begin
@@ -288,8 +304,11 @@ begin
 		destination_state <= STATE_IDLE;
 		countdown <= COUNTER_WIDTH'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS - 1);
 		internal_command <= CMD_PRECHARGE_ALL;
-		bank_activate <= 2'dx;
-		address <= {1'bx, 1'b1, 10'dx};
+		bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+		if (CHIP_ADDRESS_WIDTH > 11)
+			address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
+		address[10] <= 1'b1;
+		address[9:0] <= 10'dx;
 	end
 end
 
