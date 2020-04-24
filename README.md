@@ -24,7 +24,8 @@ The commonly used Intel `altera_avalon_new_sdram_controller` is proprietary and 
 ### Troubleshooting
 
 * Make sure you've set the IO standard for the pins connected to the DRAM chip as LVTTL 3.3V
-* If you are using SystemVerilog, make sure you use `wire` instead of `logic` for DQ and the clock. This caused synthesis issues for me where the pins were stuck at GND or VCC when they were clearly being driven.
+* SystemVerilog users: make sure you are using `wire` instead of `logic` for DQ and the clock. This caused synthesis issues for me where the pins were stuck at GND or VCC when they were clearly being driven.
+* If you see noise or data corruption, check your FPGA driver strength, check if the SDRAM chip has configurable driver strength, and try lowering the clock
 
 ## To-do List
 
