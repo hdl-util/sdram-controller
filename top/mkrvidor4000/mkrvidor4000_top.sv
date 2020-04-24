@@ -206,9 +206,9 @@ begin
     else
       countdown <= countdown - 1'd1;
 
-    data_address <= data_address == 22'h0_000_ff ? 22'd0 : data_address + 1'd1;
+    data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
     data_write <= data_write + 1'd1;
-    if (data_address == 22'h0_000_ff)
+    if (data_address == 22'h3_fff_ff)
       no_more_writes <= 1'b1;
   end
   else if (command == 2'd2 && data_read_valid)
@@ -218,17 +218,17 @@ begin
     else
       countdown <= countdown - 1'd1;
 
-    data_address <= data_address == 22'h0_000_ff ? 22'd0 : data_address + 1'd1;
+    data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
     data_write <= data_write + 1'd1;
-    if (!errored && data_address == 22'h0_000_ff)
+    if (!errored && data_read != data_write)
     begin
       codepoints <= '{8'd2, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0], 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_write[15:12], 8'h30 + data_write[11:8], 8'h30 + data_write[7:4], 8'h30 + data_write[3:0]};
-      // errored <= 1'b1;
+      errored <= 1'b1;
     end
   end
   else if (command == 2'd0 && no_more_writes && !errored)
   begin
-    if (data_address[2:0] % READ_BURST_LENGTH != 3'd0) // Will be subject to sequential effects
+    if (data_address[2:0] % READ_BURST_LENGTH != 3'd0) // Will be subject to sequential ordering effects from Table 8, this makes the test fail because the ordering isn't handled
     begin
       codepoints <= '{8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127};
       errored <= 1'b1;
@@ -242,7 +242,7 @@ begin
 end
 
 
-logic [7:0] codepoints [0:15] = '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h2, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
+logic [7:0] codepoints [0:15] = '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h47, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
 
 logic [3:0] codepoint_counter = 4'd0;
 logic [5:0] prevcy = 6'd0;

@@ -245,14 +245,14 @@ begin
 			address <= 12'dx;
 		end
 
-		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH - 1)) // Last read just finished
+		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH + 1)) // Last read just finished
 		begin
 			// $display("Read done");
 			state <= STATE_PRECHARGE;
 			data_read_valid <= 1'b0;
 			dqm <= 2'b11; // Enable masking
 		end
-		else if (step >= STEP_WIDTH'(CAS_LATENCY - 1)) // Still reading
+		else if (step >= STEP_WIDTH'(CAS_LATENCY + 1)) // Still reading
 		begin
 			data_read <= dq;
 			data_read_valid <= 1'b1;
