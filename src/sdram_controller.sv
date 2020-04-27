@@ -201,8 +201,8 @@ begin
 			countdown <= COUNTER_WIDTH'(RAS_TO_CAS_DELAY_CLOCKS - 1);
 			destination_state <= command == 2'd1 ? STATE_WRITING : STATE_READING; // go to the correct state
 			internal_command <= CMD_BANK_ACTIVATE;
-			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
-			address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
+			address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
 			step <= STEP_WIDTH'(0);
 			dqm <= {DQM_WIDTH{1'b0}}; // Don't mask input, enable output
 		end
@@ -220,7 +220,7 @@ begin
 		if (step == STEP_WIDTH'(0))
 		begin
 			internal_command <= CMD_WRITE;
-			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
 			if (CHIP_ADDRESS_WIDTH > 11)
 				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
 			address[10] <= 1'b0;
@@ -257,7 +257,7 @@ begin
 		if (step == STEP_WIDTH'(0)) // Read
 		begin
 			internal_command <= CMD_READ;
-			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH];
+			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
 			if (CHIP_ADDRESS_WIDTH > 11)
 				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
 			address[10] <= 1'b0;
