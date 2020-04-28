@@ -4,7 +4,7 @@
 
 ## Why?
 
-The commonly used Intel `altera_avalon_new_sdram_controller` is proprietary and not free for Quartus Lite users. The code in this repository lets you control an SDRAM chip without purchasing a license from Intel or anyone else. Now, Quartus Prime Lite users can freely make their own designs!
+The code in this repository lets you control an SDRAM chip without licensing IP from anyone.
 
 ## Usage
 
