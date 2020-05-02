@@ -1,11 +1,11 @@
 module as4c4m16sa_controller #(
 	// The minimum possible clock speed is 64.103 kHz, at which point the controller is saturated by auto refresh commands
 	// The maximum possible clock speeds for each speed grade are: 7: 143 Mhz, 6: 166 MHz, 5: 200 Mhz
-    parameter CLK_RATE = 143000000,
-	parameter SPEED_GRADE = 7, // 7, 6, or 5
-	parameter READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page)
-	parameter WRITE_BURST = 1, // 0 = Single write mode, 1 = Burst write mode (same length as read burst)
-	parameter CAS_LATENCY = 3 // 2 or 3
+    parameter int CLK_RATE = 143000000,
+	parameter int SPEED_GRADE = 7, // 7, 6, or 5
+	parameter int READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page)
+	parameter int WRITE_BURST = 1, // 0 = Single write mode, 1 = Burst write mode (same length as read burst)
+	parameter int CAS_LATENCY = 3 // 2 or 3
 
 ) (
 	input logic clk,
@@ -28,8 +28,8 @@ module as4c4m16sa_controller #(
 	inout wire [15:0] dq
 );
 
-localparam MODE_REGISTER_SET_CYCLE_TIME = 2;
-localparam WRITE_RECOVERY_TIME = MODE_REGISTER_SET_CYCLE_TIME;
+localparam int MODE_REGISTER_SET_CYCLE_TIME = 2;
+localparam real WRITE_RECOVERY_TIME = MODE_REGISTER_SET_CYCLE_TIME;
 
 sdram_controller #(
 	.CLK_RATE(CLK_RATE),

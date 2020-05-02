@@ -1,29 +1,29 @@
 module sdram_controller #(
-    parameter CLK_RATE, // Speed of your sdram clock in Hz
-	parameter READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page). All other values are reserved.
-	parameter WRITE_BURST = "OFF", // OFF = Single write mode, ON = Burst write mode (same length as read burst)
+    parameter int CLK_RATE, // Speed of your sdram clock in Hz
+	parameter int READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page). All other values are reserved.
+	parameter string WRITE_BURST = "OFF", // OFF = Single write mode, ON = Burst write mode (same length as read burst)
 	// All parameters below are measured in floating point seconds (i.e. 1ns = 1E-9).
 	// They should be obtained from the datasheet for your chip.
-	parameter BANK_ADDRESS_WIDTH,
-	parameter ROW_ADDRESS_WIDTH,
-	parameter COLUMN_ADDRESS_WIDTH,
-	parameter DATA_WIDTH,
-	parameter DQM_WIDTH,
-	parameter CAS_LATENCY,
-	parameter ROW_CYCLE_TIME,
-	parameter RAS_TO_CAS_DELAY,
-	parameter PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME,
-	parameter ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME,
-	parameter ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME,
+	parameter int BANK_ADDRESS_WIDTH,
+	parameter int ROW_ADDRESS_WIDTH,
+	parameter int COLUMN_ADDRESS_WIDTH,
+	parameter int DATA_WIDTH,
+	parameter int DQM_WIDTH,
+	parameter int CAS_LATENCY,
+	parameter real ROW_CYCLE_TIME,
+	parameter real RAS_TO_CAS_DELAY,
+	parameter real PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME,
+	parameter real ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME,
+	parameter real ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME,
 	// Some SDRAM chips require a minimum clock stability time prior to initialization. If it's not in the datasheet, you can try setting it to 0.
-	parameter MINIMUM_STABLE_CONDITION_TIME,
-	parameter MODE_REGISTER_SET_CYCLE_TIME,
-	parameter WRITE_RECOVERY_TIME,
-	parameter AVERAGE_REFRESH_INTERVAL_TIME,
+	parameter real MINIMUM_STABLE_CONDITION_TIME,
+	parameter real MODE_REGISTER_SET_CYCLE_TIME,
+	parameter real WRITE_RECOVERY_TIME,
+	parameter real AVERAGE_REFRESH_INTERVAL_TIME,
 
 	// Please do not set these parameters
-	parameter USER_ADDRESS_WIDTH = BANK_ADDRESS_WIDTH + ROW_ADDRESS_WIDTH + COLUMN_ADDRESS_WIDTH,
-	parameter CHIP_ADDRESS_WIDTH = (ROW_ADDRESS_WIDTH > COLUMN_ADDRESS_WIDTH ? ROW_ADDRESS_WIDTH : COLUMN_ADDRESS_WIDTH)
+	parameter int USER_ADDRESS_WIDTH = BANK_ADDRESS_WIDTH + ROW_ADDRESS_WIDTH + COLUMN_ADDRESS_WIDTH,
+	parameter int CHIP_ADDRESS_WIDTH = (ROW_ADDRESS_WIDTH > COLUMN_ADDRESS_WIDTH ? ROW_ADDRESS_WIDTH : COLUMN_ADDRESS_WIDTH)
 ) (
 	input logic clk,
 
@@ -50,28 +50,28 @@ module sdram_controller #(
 	inout wire [DATA_WIDTH-1:0] dq
 );
 
-localparam ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
-localparam RAS_TO_CAS_DELAY_CLOCKS = $unsigned(integer'(RAS_TO_CAS_DELAY * CLK_RATE));
-localparam PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS = $unsigned(integer'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME * CLK_RATE));
-localparam ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME * CLK_RATE));
-localparam ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME * CLK_RATE));
-localparam MINIMUM_STABLE_CONDITION_CLOCKS = $unsigned(integer'(MINIMUM_STABLE_CONDITION_TIME * CLK_RATE));
+localparam real ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
+localparam real RAS_TO_CAS_DELAY_CLOCKS = $unsigned(integer'(RAS_TO_CAS_DELAY * CLK_RATE));
+localparam real PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS = $unsigned(integer'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME * CLK_RATE));
+localparam real ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME * CLK_RATE));
+localparam real ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME * CLK_RATE));
+localparam real MINIMUM_STABLE_CONDITION_CLOCKS = $unsigned(integer'(MINIMUM_STABLE_CONDITION_TIME * CLK_RATE));
 
-localparam MODE_REGISTER_SET_CLOCKS = $unsigned(integer'(MODE_REGISTER_SET_CYCLE_TIME * CLK_RATE));
-localparam WRITE_RECOVERY_CLOCKS = $unsigned(integer'(WRITE_RECOVERY_TIME * CLK_RATE));
+localparam real MODE_REGISTER_SET_CLOCKS = $unsigned(integer'(MODE_REGISTER_SET_CYCLE_TIME * CLK_RATE));
+localparam real WRITE_RECOVERY_CLOCKS = $unsigned(integer'(WRITE_RECOVERY_TIME * CLK_RATE));
 
-localparam AVERAGE_REFRESH_INTERVAL_CLOCKS = $unsigned(integer'(AVERAGE_REFRESH_INTERVAL_TIME * CLK_RATE));
+localparam real AVERAGE_REFRESH_INTERVAL_CLOCKS = $unsigned(integer'(AVERAGE_REFRESH_INTERVAL_TIME * CLK_RATE));
 
-localparam [2:0] STATE_UNINIT = 3'd0;
-localparam [2:0] STATE_IDLE = 3'd1;
-localparam [2:0] STATE_WRITING = 3'd2;
-localparam [2:0] STATE_READING = 3'd3;
-localparam [2:0] STATE_WAITING = 3'd4;
-localparam [2:0] STATE_PRECHARGE = 3'd5;
+localparam bit [2:0] STATE_UNINIT = 3'd0;
+localparam bit [2:0] STATE_IDLE = 3'd1;
+localparam bit [2:0] STATE_WRITING = 3'd2;
+localparam bit [2:0] STATE_READING = 3'd3;
+localparam bit [2:0] STATE_WAITING = 3'd4;
+localparam bit [2:0] STATE_PRECHARGE = 3'd5;
 logic [2:0] state = STATE_UNINIT;
 
-localparam REFRESH_TIMER_WIDTH = $clog2(AVERAGE_REFRESH_INTERVAL_CLOCKS + 1);
-localparam REFRESH_TIMER_END = REFRESH_TIMER_WIDTH'(AVERAGE_REFRESH_INTERVAL_CLOCKS);
+localparam int REFRESH_TIMER_WIDTH = $clog2(AVERAGE_REFRESH_INTERVAL_CLOCKS + 1);
+localparam bit [REFRESH_TIMER_WIDTH-1:0] REFRESH_TIMER_END = REFRESH_TIMER_WIDTH'(AVERAGE_REFRESH_INTERVAL_CLOCKS);
 logic [REFRESH_TIMER_WIDTH-1:0] refresh_timer = REFRESH_TIMER_WIDTH'(0);
 
 always @(posedge clk)
@@ -85,28 +85,28 @@ begin
 		refresh_timer <= refresh_timer + 1'd1;
 end
 
-localparam COUNTER_WIDTH = $clog2(MINIMUM_STABLE_CONDITION_CLOCKS + 1); // Row cycle time is the longest delay
+localparam int COUNTER_WIDTH = $clog2(MINIMUM_STABLE_CONDITION_CLOCKS + 1); // Row cycle time is the longest delay
 logic [COUNTER_WIDTH-1:0] countdown = COUNTER_WIDTH'(0);
 
 // Jump from waiting to a specified state
 logic [2:0] destination_state = STATE_UNINIT;
 
 // "Step" counter used for burst write/read counting and initialization steps. Must be at least 3 bits wide.
-localparam STEP_WIDTH = $clog2(READ_BURST_LENGTH == 1 ? $unsigned(8) : $unsigned(READ_BURST_LENGTH + 2 + CAS_LATENCY));
+localparam int STEP_WIDTH = $clog2(READ_BURST_LENGTH == 1 ? $unsigned(8) : $unsigned(READ_BURST_LENGTH + 2 + CAS_LATENCY));
 logic [STEP_WIDTH-1:0] step = STEP_WIDTH'(0);
 
 logic [DATA_WIDTH-1:0] internal_dq = DATA_WIDTH'(0);
 assign dq = state == STATE_WRITING ? internal_dq : {DATA_WIDTH{1'bz}}; // Tri-State driver
 
 
-localparam [3:0] CMD_BANK_ACTIVATE = 4'd0;
-localparam [3:0] CMD_PRECHARGE_ALL = 4'd1;
-localparam [3:0] CMD_WRITE = 4'd2;
-localparam [3:0] CMD_READ = 4'd3;
-localparam [3:0] CMD_MODE_REGISTER_SET = 4'd4;
-localparam [3:0] CMD_NO_OP = 4'd5;
-localparam [3:0] CMD_BURST_STOP = 4'd6;
-localparam [3:0] CMD_AUTO_REFRESH = 4'd7;
+localparam bit [3:0] CMD_BANK_ACTIVATE = 4'd0;
+localparam bit [3:0] CMD_PRECHARGE_ALL = 4'd1;
+localparam bit [3:0] CMD_WRITE = 4'd2;
+localparam bit [3:0] CMD_READ = 4'd3;
+localparam bit [3:0] CMD_MODE_REGISTER_SET = 4'd4;
+localparam bit [3:0] CMD_NO_OP = 4'd5;
+localparam bit [3:0] CMD_BURST_STOP = 4'd6;
+localparam bit [3:0] CMD_AUTO_REFRESH = 4'd7;
 
 logic [3:0] internal_command = CMD_NO_OP;
 assign chip_select = !(internal_command != CMD_NO_OP);
