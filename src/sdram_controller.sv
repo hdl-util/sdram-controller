@@ -1,7 +1,7 @@
 module sdram_controller #(
     parameter int CLK_RATE, // Speed of your sdram clock in Hz
 	parameter int READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page). All other values are reserved.
-	parameter string WRITE_BURST = "OFF", // OFF = Single write mode, ON = Burst write mode (same length as read burst)
+	parameter int WRITE_BURST = 1, // OFF = Single write mode, ON = Burst write mode (same length as read burst)
 	// All parameters below are measured in floating point seconds (i.e. 1ns = 1E-9).
 	// They should be obtained from the datasheet for your chip.
 	parameter int BANK_ADDRESS_WIDTH,
@@ -50,17 +50,17 @@ module sdram_controller #(
 	inout wire [DATA_WIDTH-1:0] dq
 );
 
-localparam real ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
-localparam real RAS_TO_CAS_DELAY_CLOCKS = $unsigned(integer'(RAS_TO_CAS_DELAY * CLK_RATE));
-localparam real PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS = $unsigned(integer'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME * CLK_RATE));
-localparam real ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME * CLK_RATE));
-localparam real ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME * CLK_RATE));
-localparam real MINIMUM_STABLE_CONDITION_CLOCKS = $unsigned(integer'(MINIMUM_STABLE_CONDITION_TIME * CLK_RATE));
+localparam int ROW_CYCLE_CLOCKS = $unsigned(integer'(ROW_CYCLE_TIME * CLK_RATE));
+localparam int RAS_TO_CAS_DELAY_CLOCKS = $unsigned(integer'(RAS_TO_CAS_DELAY * CLK_RATE));
+localparam int PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS = $unsigned(integer'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME * CLK_RATE));
+localparam int ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_ROW_ACTIVATE_DIFFERENT_BANK_TIME * CLK_RATE));
+localparam int ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_CLOCKS = $unsigned(integer'(ROW_ACTIVATE_TO_PRECHARGE_SAME_BANK_TIME * CLK_RATE));
+localparam int MINIMUM_STABLE_CONDITION_CLOCKS = $unsigned(integer'(MINIMUM_STABLE_CONDITION_TIME * CLK_RATE));
 
-localparam real MODE_REGISTER_SET_CLOCKS = $unsigned(integer'(MODE_REGISTER_SET_CYCLE_TIME * CLK_RATE));
-localparam real WRITE_RECOVERY_CLOCKS = $unsigned(integer'(WRITE_RECOVERY_TIME * CLK_RATE));
+localparam int MODE_REGISTER_SET_CLOCKS = $unsigned(integer'(MODE_REGISTER_SET_CYCLE_TIME * CLK_RATE));
+localparam int WRITE_RECOVERY_CLOCKS = $unsigned(integer'(WRITE_RECOVERY_TIME * CLK_RATE));
 
-localparam real AVERAGE_REFRESH_INTERVAL_CLOCKS = $unsigned(integer'(AVERAGE_REFRESH_INTERVAL_TIME * CLK_RATE));
+localparam int AVERAGE_REFRESH_INTERVAL_CLOCKS = $unsigned(integer'(AVERAGE_REFRESH_INTERVAL_TIME * CLK_RATE));
 
 localparam bit [2:0] STATE_UNINIT = 3'd0;
 localparam bit [2:0] STATE_IDLE = 3'd1;
@@ -168,7 +168,7 @@ begin
 			if (CHIP_ADDRESS_WIDTH > 11)
 				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'b0}}; // 0 is a safe default for unknown manufacturer-specific mode values
 			address[10] <= 1'b0; // Also low, reserved for future use
-			address[9] <= WRITE_BURST == "ON" ? 1'b0: 1'b1;
+			address[9] <= WRITE_BURST ? 1'b0: 1'b1;
 			address[8:7] <= 2'b00; // Standard operation mode, others reserved for future use
 			address[6:4] <= 3'(CAS_LATENCY);
 			address[3] <= 1'b0; // Sequential Burst Type
