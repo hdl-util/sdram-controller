@@ -207,7 +207,7 @@ begin
       countdown <= countdown - 1'd1;
 
     data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
-    data_write <= data_write + 1'd1;
+    data_write <= data_address[15:0] + 1'd1;
     if (data_address == 22'h3_fff_ff)
       no_more_writes <= 1'b1;
   end
@@ -219,8 +219,7 @@ begin
       countdown <= countdown - 1'd1;
 
     data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
-    data_write <= data_write + 1'd1;
-    if (!errored && data_read != data_write)
+    if (!errored && data_read != data_address[15:0])
     begin
       codepoints <= '{8'd2, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0], 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_write[15:12], 8'h30 + data_write[11:8], 8'h30 + data_write[7:4], 8'h30 + data_write[3:0]};
       errored <= 1'b1;
