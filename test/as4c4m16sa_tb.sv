@@ -107,7 +107,8 @@ begin
         else if (ras && !cas && we)
         begin
             column_address <= address[7:0];
-            read_countdown <= burst_size;
+            // TODO: actually support burst mode testing. This is just faking it by sending the value twice.
+            read_countdown <= burst_size + 1;
         end
 
         assert (~(write_countdown != 9'd0) || ~(read_countdown != 9'd0)) else $fatal(1, "I/O conflict, cancelled reads/writes not implemented");
