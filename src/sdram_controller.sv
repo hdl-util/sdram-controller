@@ -217,15 +217,12 @@ begin
 	else if (state == STATE_WRITING)
 	begin
 		step <= step + 1'd1;
-		if (step == STEP_WIDTH'(0))
+		if (step == STEP_WIDTH'(1)) // Skip the first step clock to reduce the data_write latency by 1 clock for burst writing
 		begin
 			internal_command <= CMD_WRITE;
 			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
-			if (CHIP_ADDRESS_WIDTH > 11)
-				address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
-			address[10] <= 1'b0;
-			if (COLUMN_ADDRESS_WIDTH < 10)
-				address[9:COLUMN_ADDRESS_WIDTH] <= {10-COLUMN_ADDRESS_WIDTH{1'bx}};
+			if (CHIP_ADDRESS_WIDTH != COLUMN_ADDRESS_WIDTH)
+				address[CHIP_ADDRESS_WIDTH-1:COLUMN_ADDRESS_WIDTH] <= {(CHIP_ADDRESS_WIDTH - COLUMN_ADDRESS_WIDTH){1'b0}};
 			address[COLUMN_ADDRESS_WIDTH-1:0] <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH : 0];
 		end
 		else
@@ -235,7 +232,7 @@ begin
 			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
-		if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH : 1)) // Last write just finished
+		if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH + 1 : 1 + 1)) // Last write just finished
 		begin
 			state <= STATE_WAITING;
 			countdown <= COUNTER_WIDTH'(WRITE_RECOVERY_CLOCKS - 2);
@@ -243,6 +240,11 @@ begin
 			data_write_done <= 1'b0;
 			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 			internal_dq <= {DATA_WIDTH{1'b0}};
+		end
+		else if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH : 1)) // Last write about to happen
+		begin
+			data_write_done <= 1'b0;
+			internal_dq <= data_write;
 		end
 		else // Still writing
 		begin
