@@ -112,25 +112,137 @@ cyclone10lp_oscillator osc (
 
 mem_pll mem_pll(.inclk0(CLK_48MHZ), .c0(SDRAM_CLK));
 
-wire clk_pixel_x5;
-// assign SDRAM_CLK = clk_pixel_x5;
-wire clk_pixel;
+wire clk_pixel_x5, clk_pixel;
 hdmi_pll hdmi_pll(.inclk0(CLK_48MHZ), .c0(clk_pixel), .c1(clk_pixel_x5));
 
 logic [23:0] rgb;
-logic [9:0] cx, cy, screen_start_x, screen_start_y;
-hdmi #(.VIDEO_ID_CODE(1), .DDRIO(1), .DVI_OUTPUT(1)) hdmi(.clk_pixel_x10(clk_pixel_x5), .clk_pixel(clk_pixel), .rgb(rgb), .tmds_p(HDMI_TX), .tmds_clock_p(HDMI_CLK), .tmds_n(HDMI_TX_N), .tmds_clock_n(HDMI_CLK_N), .cx(cx), .cy(cy), .screen_start_x(screen_start_x), .screen_start_y(screen_start_y));
+logic [9:0] cx, cy, screen_start_x, screen_start_y, frame_width, frame_height, screen_width, screen_height;
+hdmi #(.VIDEO_ID_CODE(1), .DDRIO(1), .DVI_OUTPUT(1)) hdmi(
+  .clk_pixel_x10(clk_pixel_x5),
+  .clk_pixel(clk_pixel),
+  .rgb(rgb),
+  .tmds_p(HDMI_TX),
+  .tmds_clock_p(HDMI_CLK),
+  .tmds_n(HDMI_TX_N),
+  .tmds_clock_n(HDMI_CLK_N),
+  .cx(cx),
+  .cy(cy),
+  .screen_start_x(screen_start_x),
+  .screen_start_y(screen_start_y),
+  .frame_width(frame_width),
+  .frame_height(frame_height),
+  .screen_width(screen_width),
+  .screen_height(screen_height)
+);
+
+logic [15:0] countup = 16'd0;
+
+logic [15:0] pixel_buffer [0:31];
+logic [4:0] pixel_consumer = 5'd0, gray_pixel_consumer = 5'd0;
+
+logic first_data_ready = 1'b0;
+logic first_data_ready_acknowledged = 1'b0;
+
+always @(posedge clk_pixel)
+begin
+  if (first_data_ready && cy < screen_start_y)
+    first_data_ready_acknowledged <= 1'b1;
+
+  if (cx == 10'd0 && cy == 10'd0)
+    countup <= 16'd0;
+  else if (cx >= screen_start_x && cy >= screen_start_y && first_data_ready_acknowledged)
+  begin
+    countup <= countup + 1'd1;
+    pixel_consumer <= pixel_consumer + 1'd1;
+    unique case (pixel_consumer + 1'd1) // Balanced gray coding
+      5'd0:  gray_pixel_consumer <= 5'b00000;
+      5'd1:  gray_pixel_consumer <= 5'b10000;
+      5'd2:  gray_pixel_consumer <= 5'b11000;
+      5'd3:  gray_pixel_consumer <= 5'b11100;
+      5'd4:  gray_pixel_consumer <= 5'b11110;
+      5'd5:  gray_pixel_consumer <= 5'b11111;
+      5'd6:  gray_pixel_consumer <= 5'b01111;
+      5'd7:  gray_pixel_consumer <= 5'b01110;
+      5'd8:  gray_pixel_consumer <= 5'b00110;
+      5'd9:  gray_pixel_consumer <= 5'b00010;
+      5'd10: gray_pixel_consumer <= 5'b00011;
+      5'd11: gray_pixel_consumer <= 5'b01011;
+      5'd12: gray_pixel_consumer <= 5'b01001;
+      5'd13: gray_pixel_consumer <= 5'b00001;
+      5'd14: gray_pixel_consumer <= 5'b00101;
+      5'd15: gray_pixel_consumer <= 5'b00111;
+      5'd16: gray_pixel_consumer <= 5'b10111;
+      5'd17: gray_pixel_consumer <= 5'b10101;
+      5'd18: gray_pixel_consumer <= 5'b10001;
+      5'd19: gray_pixel_consumer <= 5'b11001;
+      5'd20: gray_pixel_consumer <= 5'b11101;
+      5'd21: gray_pixel_consumer <= 5'b01101;
+      5'd22: gray_pixel_consumer <= 5'b01100;
+      5'd23: gray_pixel_consumer <= 5'b01000;
+      5'd24: gray_pixel_consumer <= 5'b01010;
+      5'd25: gray_pixel_consumer <= 5'b11010;
+      5'd26: gray_pixel_consumer <= 5'b11011;
+      5'd27: gray_pixel_consumer <= 5'b10011;
+      5'd28: gray_pixel_consumer <= 5'b10010;
+      5'd29: gray_pixel_consumer <= 5'b10110;
+      5'd30: gray_pixel_consumer <= 5'b10100;
+      5'd31: gray_pixel_consumer <= 5'b00100;
+    endcase
+  end
+  // rgb <= {countup, 8'd0};
+  rgb <= {pixel_buffer[pixel_consumer], {8{countup != pixel_buffer[pixel_consumer]}}};
+  // rgb <= {pixel_buffer[pixel_consumer], 8'd0};
+  // rgb <= {cy < 10'd120 + screen_start_y ? 16'hff00 : cy < 10'd240 + screen_start_y ? 16'h00ff : cy < 10'd360 + screen_start_y ? 16'haa55 : cy < 10'd480 + screen_start_y ? 16'hffff : 16'haa00, 8'd0};
+end
+
+logic [4:0] captured_gray_pixel_consumer = 5'd0, degray_pixel_consumer = 5'd0;
+always @(posedge SDRAM_CLK)
+begin
+  captured_gray_pixel_consumer <= gray_pixel_consumer;
+  unique case (captured_gray_pixel_consumer)
+    5'b00000: degray_pixel_consumer <= 5'd0;
+    5'b10000: degray_pixel_consumer <= 5'd1;
+    5'b11000: degray_pixel_consumer <= 5'd2;
+    5'b11100: degray_pixel_consumer <= 5'd3;
+    5'b11110: degray_pixel_consumer <= 5'd4;
+    5'b11111: degray_pixel_consumer <= 5'd5;
+    5'b01111: degray_pixel_consumer <= 5'd6;
+    5'b01110: degray_pixel_consumer <= 5'd7;
+    5'b00110: degray_pixel_consumer <= 5'd8;
+    5'b00010: degray_pixel_consumer <= 5'd9;
+    5'b00011: degray_pixel_consumer <= 5'd10;
+    5'b01011: degray_pixel_consumer <= 5'd11;
+    5'b01001: degray_pixel_consumer <= 5'd12;
+    5'b00001: degray_pixel_consumer <= 5'd13;
+    5'b00101: degray_pixel_consumer <= 5'd14;
+    5'b00111: degray_pixel_consumer <= 5'd15;
+    5'b10111: degray_pixel_consumer <= 5'd16;
+    5'b10101: degray_pixel_consumer <= 5'd17;
+    5'b10001: degray_pixel_consumer <= 5'd18;
+    5'b11001: degray_pixel_consumer <= 5'd19;
+    5'b11101: degray_pixel_consumer <= 5'd20;
+    5'b01101: degray_pixel_consumer <= 5'd21;
+    5'b01100: degray_pixel_consumer <= 5'd22;
+    5'b01000: degray_pixel_consumer <= 5'd23;
+    5'b01010: degray_pixel_consumer <= 5'd24;
+    5'b11010: degray_pixel_consumer <= 5'd25;
+    5'b11011: degray_pixel_consumer <= 5'd26;
+    5'b10011: degray_pixel_consumer <= 5'd27;
+    5'b10010: degray_pixel_consumer <= 5'd28;
+    5'b10110: degray_pixel_consumer <= 5'd29;
+    5'b10100: degray_pixel_consumer <= 5'd30;
+    5'b00100: degray_pixel_consumer <= 5'd31;
+  endcase
+end
 
 logic [1:0] command = 2'd0;
 logic [21:0] data_address = 22'd0;
-logic [15:0] data_write = 16'd0;
-logic [15:0] data_read;
-logic data_read_valid;
-logic data_write_done;
+logic [15:0] data_write = 16'd0, data_read;
+logic data_read_valid, data_write_done;
 
 localparam WRITE_BURST = 1;
-localparam READ_BURST_LENGTH = 1;
-as4c4m16sa_controller #(.CLK_RATE(100000000), .WRITE_BURST(WRITE_BURST), .READ_BURST_LENGTH(READ_BURST_LENGTH), .CAS_LATENCY(2)) as4c4m16sa_controller (
+localparam READ_BURST_LENGTH = 8;
+as4c4m16sa_controller #(.CLK_RATE(140000000), .WRITE_BURST(WRITE_BURST), .READ_BURST_LENGTH(READ_BURST_LENGTH), .CAS_LATENCY(3)) as4c4m16sa_controller (
 	.clk(SDRAM_CLK),
   .command(command),
   .data_address(data_address),
@@ -149,48 +261,12 @@ as4c4m16sa_controller #(.CLK_RATE(100000000), .WRITE_BURST(WRITE_BURST), .READ_B
   .dq(SDRAM_DQ)
 );
 
+logic [4:0] pixel_producer = 5'd0, pixel_diff;
+
+assign pixel_diff = pixel_producer >= degray_pixel_consumer ? (pixel_producer - degray_pixel_consumer) : ~(degray_pixel_consumer - pixel_producer);
+
 logic no_more_writes = 1'd0;
 logic [7:0] countdown = 3'd0;
-logic errored = 1'd0;
-
-// always @(posedge SDRAM_CLK)
-// begin
-//   if (command == 2'd0)
-//   begin
-//     if (!errored)
-//     begin
-//       command <= 2'd1;
-//       countdown <= WRITE_BURST ? 3'(READ_BURST_LENGTH - 1) : 3'd0;
-//       codepoints <= '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h47, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
-//     end
-//   end
-//   else if (command == 2'd1 && data_write_done)
-//   begin
-//     data_write <= data_write + 1'd1;
-//     if (countdown == 3'd0)
-//     begin
-//       command <= 2'd2;
-//       countdown <= 3'(READ_BURST_LENGTH - 1);
-//     end
-//     else
-//       countdown <= countdown - 1'd1;
-//   end
-//   else if (command == 2'd2 && data_read_valid)
-//   begin
-//     if (countdown == 3'd0)
-//     begin
-//       data_address <= data_address + READ_BURST_LENGTH;
-//       command <= 2'd0;
-//     end
-//     else
-//       countdown <= countdown - 1'd1;
-//     if (!errored && data_read != (data_address[15:0] + 3'(READ_BURST_LENGTH - 1) - countdown))
-//     begin
-//       codepoints <= '{8'h30 + countdown, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0] + (3'(READ_BURST_LENGTH - 1) - countdown), 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0] + (3'(READ_BURST_LENGTH-1) - countdown)};
-//       errored <= 1'b1;
-//     end
-//   end
-// end
 
 always @(posedge SDRAM_CLK)
 begin
@@ -198,6 +274,7 @@ begin
   begin
     command <= 2'd1;
     countdown <= WRITE_BURST ? 8'(READ_BURST_LENGTH - 1) : 8'd0;
+    data_write <= data_address[15:0];
   end
   else if (command == 2'd1 && data_write_done)
   begin
@@ -206,58 +283,33 @@ begin
     else
       countdown <= countdown - 1'd1;
 
-    data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
-    data_write <= data_address[15:0] + 1'd1;
-    if (data_address == 22'h3_fff_ff)
+    data_address <= data_address + 1'd1;
+    data_write <= 16'(data_address + 1'd1);
+    if (data_address + 1'd1 == 22'd0)
       no_more_writes <= 1'b1;
   end
   else if (command == 2'd2 && data_read_valid)
   begin
     if (countdown == 3'd0)
+    begin
       command <= 2'd0;
+      first_data_ready <= 1'b1;
+    end
     else
       countdown <= countdown - 1'd1;
 
-    data_address <= data_address == 22'h3_fff_ff ? 22'd0 : data_address + 1'd1;
-    if (!errored && data_read != data_address[15:0])
-    begin
-      codepoints <= '{8'd2, 8'h30 + data_address[21:20], 8'h30 + data_address[19:16], 8'h30 + data_address[15:12], 8'h30 + data_address[11:8], 8'h30 + data_address[7:4], 8'h30 + data_address[3:0], 8'd61, 8'h30 + data_read[15:12], 8'h30 + data_read[11:8], 8'h30 + data_read[7:4], 8'h30 + data_read[3:0], 8'h30 + data_write[15:12], 8'h30 + data_write[11:8], 8'h30 + data_write[7:4], 8'h30 + data_write[3:0]};
-      errored <= 1'b1;
-    end
+    data_address <= data_address == 22'(640 * 480 - 1) ? 22'd0 : data_address + 1'd1;
+    pixel_buffer[pixel_producer] <= data_read;
+    pixel_producer <= pixel_producer + 1'd1;
   end
-  else if (command == 2'd0 && no_more_writes && !errored)
+  else if (command == 2'd0 && no_more_writes)
   begin
-    if (data_address[2:0] % READ_BURST_LENGTH != 3'd0) // Will be subject to sequential ordering effects from Table 8, this makes the test fail because the ordering isn't handled
-    begin
-      codepoints <= '{8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127, 8'd127};
-      errored <= 1'b1;
-    end
-    else
+    if (pixel_diff <= 5'(24 - READ_BURST_LENGTH))
     begin
       command <= 2'd2;
       countdown <= 8'(READ_BURST_LENGTH - 1);
     end
   end
 end
-
-
-logic [7:0] codepoints [0:15] = '{8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'd2, 8'h47, 8'h4f, 8'h4f, 8'h44, 8'd1, 8'd1, 8'd1, 8'd1};
-
-logic [3:0] codepoint_counter = 4'd0;
-logic [5:0] prevcy = 6'd0;
-always @(posedge clk_pixel)
-begin
-    if (cy == 10'd0)
-    begin
-        prevcy <= 6'd0;
-    end
-    else if (prevcy != cy[9:4])
-    begin
-        codepoint_counter <= codepoint_counter + 1'd1;
-        prevcy <= cy[9:4];
-    end
-end
-
-console console(.clk_pixel(clk_pixel), .codepoint(codepoints[codepoint_counter]), .attribute({cx[9], cy[8:6], cx[8:5]}), .cx(cx), .cy(cy), .rgb(rgb));
 
 endmodule

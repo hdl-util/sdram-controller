@@ -133,27 +133,27 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQM[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQM[0]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_RASn
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_WEn
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[11]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[10]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[9]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[8]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[7]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[6]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[5]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[4]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[3]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[2]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[1]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[0]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_BA[1]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_BA[0]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQM[1]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQM[0]
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_RASn
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CASn
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_WEn
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CSn
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CKE
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[11]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[10]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[9]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[8]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[7]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[6]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[5]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[4]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[3]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[2]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[1]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_ADDR[0]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_BA[1]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_BA[0]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQM[1]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQM[0]
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_RASn
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CASn
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_WEn
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CSn
+# set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CKE
 
 # SAM D21 PINS
 set_location_assignment PIN_B1  -to MKR_AREF
