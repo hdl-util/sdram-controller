@@ -92,7 +92,7 @@ logic [COUNTER_WIDTH-1:0] countdown = COUNTER_WIDTH'(0);
 logic [2:0] destination_state = STATE_UNINIT;
 
 // "Step" counter used for burst write/read counting and initialization steps. Must be at least 3 bits wide.
-localparam int STEP_WIDTH = $clog2(READ_BURST_LENGTH == 1 ? $unsigned(8) : $unsigned(READ_BURST_LENGTH + 2 + CAS_LATENCY));
+localparam int STEP_WIDTH = $clog2(READ_BURST_LENGTH == 1 ? $unsigned(8) : $unsigned(READ_BURST_LENGTH + 3 + CAS_LATENCY));
 logic [STEP_WIDTH-1:0] step = STEP_WIDTH'(0);
 
 logic [DATA_WIDTH-1:0] internal_dq = DATA_WIDTH'(0);
@@ -274,13 +274,13 @@ begin
 			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
-		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH + 1)) // Last read just finished
+		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH + 2)) // Last read just finished
 		begin
 			state <= STATE_PRECHARGE;
 			data_read_valid <= 1'b0;
 			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 		end
-		else if (step >= STEP_WIDTH'(CAS_LATENCY + 1)) // Still reading
+		else if (step >= STEP_WIDTH'(CAS_LATENCY + 2)) // Still reading
 		begin
 			data_read <= dq;
 			data_read_valid <= 1'b1;
