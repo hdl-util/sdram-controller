@@ -100,19 +100,20 @@ assign dq = state == STATE_WRITING ? internal_dq : {DATA_WIDTH{1'bz}}; // Tri-St
 
 
 localparam bit [3:0] CMD_BANK_ACTIVATE = 4'd0;
-localparam bit [3:0] CMD_PRECHARGE_ALL = 4'd1;
-localparam bit [3:0] CMD_WRITE = 4'd2;
-localparam bit [3:0] CMD_READ = 4'd3;
-localparam bit [3:0] CMD_MODE_REGISTER_SET = 4'd4;
-localparam bit [3:0] CMD_NO_OP = 4'd5;
-localparam bit [3:0] CMD_BURST_STOP = 4'd6;
-localparam bit [3:0] CMD_AUTO_REFRESH = 4'd7;
+localparam bit [3:0] CMD_BANK_PRECHARGE = 4'd1;
+localparam bit [3:0] CMD_PRECHARGE_ALL = 4'd2;
+localparam bit [3:0] CMD_WRITE = 4'd3;
+localparam bit [3:0] CMD_READ = 4'd4;
+localparam bit [3:0] CMD_MODE_REGISTER_SET = 4'd5;
+localparam bit [3:0] CMD_NO_OP = 4'd6;
+localparam bit [3:0] CMD_BURST_STOP = 4'd7;
+localparam bit [3:0] CMD_AUTO_REFRESH = 4'd8;
 
 logic [3:0] internal_command = CMD_NO_OP;
 assign chip_select = !(internal_command != CMD_NO_OP);
-assign row_address_strobe = !(internal_command == CMD_BANK_ACTIVATE || internal_command == CMD_PRECHARGE_ALL || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_AUTO_REFRESH);
+assign row_address_strobe = !(internal_command == CMD_BANK_ACTIVATE || internal_command == CMD_BANK_PRECHARGE || internal_command == CMD_PRECHARGE_ALL || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_AUTO_REFRESH);
 assign column_address_strobe = !(internal_command == CMD_WRITE || internal_command == CMD_READ || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_AUTO_REFRESH);
-assign write_enable = !(internal_command == CMD_PRECHARGE_ALL || internal_command == CMD_WRITE || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_BURST_STOP);
+assign write_enable = !(internal_command == CMD_BANK_PRECHARGE || internal_command == CMD_PRECHARGE_ALL || internal_command == CMD_WRITE || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_BURST_STOP);
 
 always @(posedge clk)
 begin
@@ -228,7 +229,7 @@ begin
 		else
 		begin
 			internal_command <= CMD_NO_OP;
-			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			bank_activate <= bank_activate;
 			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
@@ -270,7 +271,7 @@ begin
 		else // No-Operation
 		begin
 			internal_command <= CMD_NO_OP;
-			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+			bank_activate <= bank_activate;
 			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 		end
 
@@ -298,7 +299,7 @@ begin
 		else
 			countdown <= countdown - 1'd1;
 		internal_command <= CMD_NO_OP;
-		bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+		bank_activate <= bank_activate;
 		address <= {CHIP_ADDRESS_WIDTH{1'bx}};
 	end
 	else if (state == STATE_PRECHARGE)
@@ -306,8 +307,8 @@ begin
 		state <= STATE_WAITING;
 		destination_state <= STATE_IDLE;
 		countdown <= COUNTER_WIDTH'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS - 1);
-		internal_command <= CMD_PRECHARGE_ALL;
-		bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
+		internal_command <= CMD_BANK_PRECHARGE;
+		bank_activate <= bank_activate;
 		if (CHIP_ADDRESS_WIDTH > 11)
 			address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};
 		address[10] <= 1'b1;
