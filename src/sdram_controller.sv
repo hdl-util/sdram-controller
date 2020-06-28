@@ -2,14 +2,14 @@ module sdram_controller #(
     parameter int CLK_RATE, // Speed of your sdram clock in Hz
 	parameter int READ_BURST_LENGTH = 1, // 1, 2, 4, 8, or 256 (full page). All other values are reserved.
 	parameter int WRITE_BURST = 1, // OFF = Single write mode, ON = Burst write mode (same length as read burst)
-	// All parameters below are measured in floating point seconds (i.e. 1ns = 1E-9).
-	// They should be obtained from the datasheet for your chip.
 	parameter int BANK_ADDRESS_WIDTH,
 	parameter int ROW_ADDRESS_WIDTH,
 	parameter int COLUMN_ADDRESS_WIDTH,
 	parameter int DATA_WIDTH,
 	parameter int DQM_WIDTH,
 	parameter int CAS_LATENCY,
+	// All parameters below are measured in floating point seconds (i.e. 1ns = 1E-9).
+	// They should be obtained from the datasheet for your chip.
 	parameter real ROW_CYCLE_TIME,
 	parameter real RAS_TO_CAS_DELAY,
 	parameter real PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_TIME,
