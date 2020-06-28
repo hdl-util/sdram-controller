@@ -46,7 +46,7 @@ module sdram_controller #(
 	output logic row_address_strobe,
 	output logic column_address_strobe,
 	output logic write_enable,
-	output logic [DQM_WIDTH-1:0] dqm = {DQM_WIDTH{1'b1}},
+	output logic [DQM_WIDTH-1:0] dqm = {DQM_WIDTH{1'b0}},
 	inout wire [DATA_WIDTH-1:0] dq
 );
 
@@ -74,7 +74,7 @@ localparam int REFRESH_TIMER_WIDTH = $clog2(AVERAGE_REFRESH_INTERVAL_CLOCKS + 1)
 localparam bit [REFRESH_TIMER_WIDTH-1:0] REFRESH_TIMER_END = REFRESH_TIMER_WIDTH'(AVERAGE_REFRESH_INTERVAL_CLOCKS);
 logic [REFRESH_TIMER_WIDTH-1:0] refresh_timer = REFRESH_TIMER_WIDTH'(0);
 
-always @(posedge clk)
+always_ff @(posedge clk)
 begin
 	// TODO: abort a read/write and refresh if it's taking too long (i.e. full-page)
 	if (state == STATE_IDLE && refresh_timer >= REFRESH_TIMER_END) // Refresh will always occur from an idle state
@@ -115,7 +115,13 @@ assign row_address_strobe = !(internal_command == CMD_BANK_ACTIVATE || internal_
 assign column_address_strobe = !(internal_command == CMD_WRITE || internal_command == CMD_READ || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_AUTO_REFRESH);
 assign write_enable = !(internal_command == CMD_BANK_PRECHARGE || internal_command == CMD_PRECHARGE_ALL || internal_command == CMD_WRITE || internal_command == CMD_MODE_REGISTER_SET || internal_command == CMD_BURST_STOP);
 
-always @(posedge clk)
+logic pending_precharge = 1'd0;
+
+logic [ROW_ADDRESS_WIDTH-1:0] last_row_address;
+logic bank_or_row_differs;
+assign bank_or_row_differs = bank_activate != data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH] || last_row_address != data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
+
+always_ff @(posedge clk)
 begin
 	if (state == STATE_UNINIT)
 	begin
@@ -187,7 +193,12 @@ begin
 	end
 	else if (state == STATE_IDLE)
 	begin
-		if (refresh_timer >= REFRESH_TIMER_END) // Refresh timer expires
+		step <= STEP_WIDTH'(0);
+		if (pending_precharge && (bank_or_row_differs || refresh_timer >= REFRESH_TIMER_END / 2))
+		begin
+			state <= STATE_PRECHARGE;
+		end
+		else if (refresh_timer >= REFRESH_TIMER_END) // Refresh timer expires
 		begin
 			state <= STATE_WAITING;
 			countdown <= COUNTER_WIDTH'(ROW_CYCLE_CLOCKS - 1);
@@ -198,27 +209,34 @@ begin
 		end
 		else if (command == 2'd1 || command == 2'd2) // Write or Read (does a bank activate)
 		begin
-			state <= STATE_WAITING;
-			countdown <= COUNTER_WIDTH'(RAS_TO_CAS_DELAY_CLOCKS - 1);
-			destination_state <= command == 2'd1 ? STATE_WRITING : STATE_READING; // go to the correct state
-			internal_command <= CMD_BANK_ACTIVATE;
-			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
-			address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
-			step <= STEP_WIDTH'(0);
-			dqm <= {DQM_WIDTH{1'b0}}; // Don't mask input, enable output
+			if (!pending_precharge || bank_or_row_differs)
+			begin
+				state <= STATE_WAITING;
+				countdown <= COUNTER_WIDTH'(RAS_TO_CAS_DELAY_CLOCKS - 1);
+				destination_state <= command == 2'd1 ? STATE_WRITING : STATE_READING; // go to the correct state
+				internal_command <= CMD_BANK_ACTIVATE;
+				bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
+				address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
+				last_row_address <= data_address[USER_ADDRESS_WIDTH - 1 - BANK_ADDRESS_WIDTH : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH - ROW_ADDRESS_WIDTH];
+			end
+			else
+			begin
+				state <= command == 2'd1 ? STATE_WRITING : STATE_READING; // go to the correct state
+				internal_command <= CMD_NO_OP;
+			end
 		end
 		else
 		begin
 			state <= STATE_IDLE;
 			internal_command <= CMD_NO_OP;
-			bank_activate <= {BANK_ADDRESS_WIDTH{1'bx}};
-			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
+			bank_activate <= bank_activate;
+			address <= address;
 		end
 	end
 	else if (state == STATE_WRITING)
 	begin
 		step <= step + 1'd1;
-		if (step == STEP_WIDTH'(1)) // Skip the first step clock to reduce the data_write latency by 1 clock for burst writing
+		if (step == STEP_WIDTH'(1)) // Skip the first step clock to reduce the first data_write_done latency by 1 clock for burst writing
 		begin
 			internal_command <= CMD_WRITE;
 			bank_activate <= data_address[USER_ADDRESS_WIDTH - 1 : USER_ADDRESS_WIDTH - BANK_ADDRESS_WIDTH];
@@ -230,16 +248,24 @@ begin
 		begin
 			internal_command <= CMD_NO_OP;
 			bank_activate <= bank_activate;
-			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
+			address <= address;
 		end
 
 		if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH + 1 : 1 + 1)) // Last write just finished
 		begin
 			state <= STATE_WAITING;
 			countdown <= COUNTER_WIDTH'(WRITE_RECOVERY_CLOCKS - 2);
-			destination_state <= STATE_PRECHARGE;
+			if (bank_or_row_differs)
+			begin
+				destination_state <= STATE_PRECHARGE;
+				pending_precharge <= 1'b1;
+			end
+			else
+			begin
+				destination_state <= STATE_IDLE;
+				pending_precharge <= 1'b1;
+			end
 			data_write_done <= 1'b0;
-			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 			internal_dq <= {DATA_WIDTH{1'b0}};
 		end
 		else if (step == STEP_WIDTH'(WRITE_BURST ? READ_BURST_LENGTH : 1)) // Last write about to happen
@@ -272,14 +298,22 @@ begin
 		begin
 			internal_command <= CMD_NO_OP;
 			bank_activate <= bank_activate;
-			address <= {CHIP_ADDRESS_WIDTH{1'bx}};
+			address <= address;
 		end
 
 		if (step == STEP_WIDTH'(CAS_LATENCY + READ_BURST_LENGTH + 2)) // Last read just finished
 		begin
-			state <= STATE_PRECHARGE;
+			if (bank_or_row_differs)
+			begin
+				state <= STATE_PRECHARGE;
+				pending_precharge <= 1'b1;
+			end
+			else
+			begin
+				state <= STATE_IDLE;
+				pending_precharge <= 1'b1;
+			end
 			data_read_valid <= 1'b0;
-			dqm <= {DQM_WIDTH{1'b1}}; // Enable masking
 		end
 		else if (step >= STEP_WIDTH'(CAS_LATENCY + 2)) // Still reading
 		begin
@@ -300,7 +334,7 @@ begin
 			countdown <= countdown - 1'd1;
 		internal_command <= CMD_NO_OP;
 		bank_activate <= bank_activate;
-		address <= {CHIP_ADDRESS_WIDTH{1'bx}};
+		address <= address;
 	end
 	else if (state == STATE_PRECHARGE)
 	begin
@@ -308,6 +342,8 @@ begin
 		destination_state <= STATE_IDLE;
 		countdown <= COUNTER_WIDTH'(PRECHARGE_TO_REFRESH_OR_ROW_ACTIVATE_SAME_BANK_CLOCKS - 1);
 		internal_command <= CMD_BANK_PRECHARGE;
+		pending_precharge <= 1'b0;
+
 		bank_activate <= bank_activate;
 		if (CHIP_ADDRESS_WIDTH > 11)
 			address[CHIP_ADDRESS_WIDTH-1:11] <= {CHIP_ADDRESS_WIDTH-11{1'bx}};

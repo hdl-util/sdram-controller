@@ -36,9 +36,9 @@ The code in this repository lets you control an SDRAM chip without licensing IP 
 
 * Self Refresh Mode
 * Optimizations
-    * [ ] Conditionally avoid manual precharging
+    * [x] Conditionally avoid manual precharging
         * Manual precharging can assume spatial locality by only precharging if the next command is for a different column-address
-    * [ ] Bank activation: if the row address and bank are the same, can you do a repeated read/write? (yes until tmax bank active)
+    * [x] Bank activation: if the row address and bank are the same, can you do a repeated read/write? (yes until tmax bank active)
     * [ ] Command pipelining: you could activate another bank while a write/read is being done (some overhaul of the state machine is needed here)
 
 
